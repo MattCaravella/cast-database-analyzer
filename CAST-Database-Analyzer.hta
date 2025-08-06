@@ -1,0 +1,40 @@
+<html>
+<head>
+<title>CAST Database Analyzer</title>
+<HTA:APPLICATION 
+    APPLICATIONNAME="CAST Database Analyzer"
+    ID="CASTAnalyzer"
+    VERSION="1.0"
+    BORDER="dialog"
+    INNERBORDER="no"
+    SINGLEINSTANCE="yes"
+    MAXIMIZEBUTTON="yes"
+    MINIMIZEBUTTON="yes"
+    SCROLL="no"
+    SCROLLFLAT="no"
+    CONTEXTMENU="no"
+    SELECTION="no"
+    WINDOWSTATE="normal" />
+
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+    }
+    iframe {
+        width: 100%;
+        height: 100vh;
+        border: none;
+    }
+</style>
+
+<script>
+    window.resizeTo(1400, 900);
+    window.moveTo((screen.width - 1400) / 2, (screen.height - 900) / 2);
+</script>
+</head>
+<body>
+    <iframe src="simple-frontend.html"></iframe>
+</body>
+</html>
