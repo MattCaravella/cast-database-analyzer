@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "dist": "electron-builder --win",
+    "dist": "electron-builder --win --publish=never",
     "pack": "electron-builder --dir"
   },
   "keywords": ["forensics", "telecommunications", "analysis"],
