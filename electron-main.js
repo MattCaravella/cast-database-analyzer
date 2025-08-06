@@ -45,6 +45,16 @@ function createWindow() {
     }
   });
 
+  // Enable drag and drop files from external sources
+  mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+    event.preventDefault();
+  });
+
+  // Prevent new window creation from drag-drop
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' };
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -118,14 +128,34 @@ ipcMain.handle('show-message', async (event, title, message, type = 'info') => {
   return result;
 });
 
-// Read dropped file content
+// Read dropped file content as text
 ipcMain.handle('read-dropped-file', async (event, filePath) => {
+  try {
+    const data = fs.readFileSync(filePath, 'utf8');
+    return {
+      success: true,
+      data: data,
+      path: filePath,
+      name: path.basename(filePath)
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      path: filePath
+    };
+  }
+});
+
+// Read dropped file content as binary (for Excel/PDF files)
+ipcMain.handle('read-dropped-file-binary', async (event, filePath) => {
   try {
     const data = fs.readFileSync(filePath);
     return {
       success: true,
-      data: data,
-      path: filePath
+      data: Array.from(data), // Convert Buffer to Array for IPC transfer
+      path: filePath,
+      name: path.basename(filePath)
     };
   } catch (error) {
     return {

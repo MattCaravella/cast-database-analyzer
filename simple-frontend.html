@@ -717,9 +717,15 @@
             });
         }
 
+        // Check if we're in Electron and get IPC renderer
+        const { ipcRenderer } = window.require ? window.require('electron') : { ipcRenderer: null };
+        const isElectron = !!ipcRenderer;
+        console.log('Running in Electron:', isElectron);
+
         // Setup drag and drop
         function setupDragAndDrop() {
             setupDropZoneListeners();
+            console.log('Drag-and-drop initialized for', isElectron ? 'Electron' : 'browser');
         }
 
         function setupDropZoneListeners() {
@@ -727,30 +733,75 @@
                 const input = area.querySelector('input[type="file"]');
                 const source = area.dataset.source;
                 
-                // Remove existing listeners to avoid duplicates
-                area.replaceWith(area.cloneNode(true));
-                area = document.querySelector(`[data-source="${source}"]`);
+                // Click handler for file dialog
+                area.addEventListener('click', () => {
+                    if (input) input.click();
+                });
                 
-                area.addEventListener('click', () => area.querySelector('input[type="file"]').click());
-                
+                // Drag over
                 area.addEventListener('dragover', (e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     area.classList.add('dragover');
                 });
                 
-                area.addEventListener('dragleave', () => {
-                    area.classList.remove('dragover');
-                });
-                
-                area.addEventListener('drop', (e) => {
+                // Drag leave
+                area.addEventListener('dragleave', (e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     area.classList.remove('dragover');
-                    handleFileDrop(Array.from(e.dataTransfer.files), source);
                 });
                 
-                area.querySelector('input[type="file"]').addEventListener('change', (e) => {
-                    handleFileDrop(Array.from(e.target.files), source);
+                // Drop handler - CRITICAL FIX FOR ELECTRON
+                area.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    area.classList.remove('dragover');
+                    
+                    console.log('Drop event fired!');
+                    
+                    if (isElectron) {
+                        // In Electron, get file paths from dataTransfer
+                        const files = [];
+                        
+                        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                            for (let i = 0; i < e.dataTransfer.files.length; i++) {
+                                const file = e.dataTransfer.files[i];
+                                console.log('File path:', file.path);
+                                files.push({
+                                    name: file.name,
+                                    path: file.path, // Electron provides this
+                                    size: file.size
+                                });
+                            }
+                        }
+                        
+                        console.log('Processing', files.length, 'files in Electron mode');
+                        await handleElectronFileDrop(files, source);
+                    } else {
+                        // Browser fallback
+                        const files = Array.from(e.dataTransfer.files);
+                        console.log('Processing', files.length, 'files in browser mode');
+                        await handleFileDrop(files, source);
+                    }
                 });
+                
+                // File input change (for click to browse)
+                if (input) {
+                    input.addEventListener('change', async (e) => {
+                        const files = Array.from(e.target.files);
+                        if (isElectron) {
+                            const electronFiles = files.map(f => ({
+                                name: f.name,
+                                path: f.path || f.webkitRelativePath,
+                                size: f.size
+                            }));
+                            await handleElectronFileDrop(electronFiles, source);
+                        } else {
+                            await handleFileDrop(files, source);
+                        }
+                    });
+                }
             });
         }
         
@@ -844,18 +895,170 @@
         });
 
         async function handleFileDrop(files, source) {
+            // Check if we're in Electron environment
+            const isElectron = typeof window.require !== 'undefined';
+            
+            if (isElectron) {
+                // Use Electron-specific file handling
+                await handleElectronFileDrop(files, source);
+            } else {
+                // Use browser-native file handling (development mode)
+                await handleBrowserFileDrop(files, source);
+            }
+        }
+        
+        // NEW: Electron-specific file handling
+        async function handleElectronFileDrop(files, source) {
+            console.log('handleElectronFileDrop called with:', files.length, 'files');
+            
+            for (const fileInfo of files) {
+                console.log('Reading file:', fileInfo.path);
+                
+                try {
+                    // Use IPC to read file from main process
+                    const result = await ipcRenderer.invoke('read-dropped-file', fileInfo.path);
+                    
+                    if (result.success) {
+                        console.log('File read successfully:', fileInfo.name);
+                        
+                        // Convert buffer to text
+                        const text = await bufferToText(result.data, fileInfo.name);
+                        
+                        // Create a file-like object for processing
+                        const fileObj = {
+                            name: fileInfo.name,
+                            path: fileInfo.path,
+                            size: fileInfo.size,
+                            data: text
+                        };
+                        
+                        // Process with existing logic
+                        await processFileData(fileObj, source);
+                        
+                    } else {
+                        console.error('Failed to read file:', result.error);
+                        updateStatus(`Error reading ${fileInfo.name}: ${result.error}`);
+                    }
+                    
+                } catch (error) {
+                    console.error('Error processing file:', error);
+                    updateStatus(`Error processing ${fileInfo.name}`);
+                }
+            }
+        }
+
+        // Helper function to convert buffer to text
+        async function bufferToText(buffer, fileName) {
+            const uint8Array = new Uint8Array(buffer);
+            
+            // Handle different file types
+            if (fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls')) {
+                // For Excel files, you'll need to handle binary data
+                return uint8Array;
+            } else {
+                // For text files, convert to string
+                const decoder = new TextDecoder('utf-8');
+                return decoder.decode(uint8Array);
+            }
+        }
+
+        // Updated processFiles function for Electron
+        async function processFileData(fileObj, source) {
+            console.log('Processing file data:', fileObj.name);
+            updateStatus(`Processing ${fileObj.name}...`);
+            
+            try {
+                // Use your existing extraction logic
+                const extracted = extractData(fileObj.data, fileObj.name);
+                
+                // Handle the results based on your source logic
+                if (source === 'create') {
+                    const tileName = prompt('Enter a name for this source tile:');
+                    if (!tileName) return;
+                    
+                    const tileId = createSourceTile(tileName);
+                    await processExtractedData(extracted, tileId, fileObj.name);
+                    createNewCreateTile();
+                } else {
+                    await processExtractedData(extracted, source, fileObj.name);
+                }
+                
+                updateAllAnalysis();
+                updateStatus(`Successfully processed ${fileObj.name}`);
+                
+            } catch (error) {
+                console.error('Error processing file:', error);
+                updateStatus(`Error processing ${fileObj.name}: ${error.message}`);
+            }
+        }
+
+        // Helper function to process extracted data
+        async function processExtractedData(extracted, tileId, fileName) {
+            const tile = sourceTiles.get(tileId);
+            if (!tile) return;
+            
+            // Add file to tile
+            tile.files.push(fileName);
+            
+            // Merge extracted data
+            extracted.phones.forEach(phone => tile.phones.add(phone));
+            extracted.emails.forEach(email => tile.emails.add(email));
+            extracted.ips.forEach(ip => tile.ips.add(ip));
+            
+            // Merge row data
+            extracted.phoneRows.forEach((rows, phone) => {
+                if (!tile.phoneRows.has(phone)) {
+                    tile.phoneRows.set(phone, []);
+                }
+                tile.phoneRows.get(phone).push(...rows);
+            });
+            
+            extracted.emailRows.forEach((rows, email) => {
+                if (!tile.emailRows.has(email)) {
+                    tile.emailRows.set(email, []);
+                }
+                tile.emailRows.get(email).push(...rows);
+            });
+            
+            extracted.ipRows.forEach((rows, ip) => {
+                if (!tile.ipRows.has(ip)) {
+                    tile.ipRows.set(ip, []);
+                }
+                tile.ipRows.get(ip).push(...rows);
+            });
+            
+            // Update tile display
+            updateTileDisplay(tileId);
+        }
+
+        function updateTileDisplay(tileId) {
+            const tile = sourceTiles.get(tileId);
+            const tileElement = document.getElementById(tileId);
+            
+            if (tile && tileElement) {
+                const fileCount = tileElement.querySelector('.file-count-link');
+                const phoneCount = tileElement.querySelector('.phone-count');
+                const emailCount = tileElement.querySelector('.email-count');
+                const ipCount = tileElement.querySelector('.ip-count');
+                
+                if (fileCount) fileCount.textContent = tile.files.length;
+                if (phoneCount) phoneCount.textContent = tile.phones.size;
+                if (emailCount) emailCount.textContent = tile.emails.size;
+                if (ipCount) ipCount.textContent = tile.ips.size;
+            }
+        }
+        
+        // Original browser handling (for development)
+        async function handleBrowserFileDrop(files, source) {
             if (source === 'create') {
-                // First file drop on create tile - ask for tile name
                 const tileName = prompt('Enter a name for this source tile:');
                 if (!tileName) return;
                 
                 const tileId = createSourceTile(tileName);
                 await processFiles(files, tileId);
                 
-                // Create new "Create Source Tile" 
                 createNewCreateTile();
             } else {
-                // Files dropped on existing tile
                 await processFiles(files, source);
             }
         }
@@ -2091,6 +2294,169 @@
             updateAllAnalysis();
             updateStatus('Files processed successfully');
         }
+        
+        // New function to process files using Electron IPC
+        async function processElectronFiles(filePaths, tileId) {
+            const tile = sourceTiles.get(tileId);
+            updateStatus(`Processing ${filePaths.length} files for ${tile.name}...`);
+            
+            for (const fileInfo of filePaths) {
+                try {
+                    const fileName = fileInfo.name;
+                    const isExcel = fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls');
+                    const isPDF = fileName.toLowerCase().endsWith('.pdf');
+                    
+                    if (fileName.toLowerCase().endsWith('.pdf')) {
+                        updateStatus(`📄 Extracting text from PDF: ${fileName}...`);
+                        console.log(`📄 Starting PDF processing for: ${fileName}`);
+                    } else {
+                        updateStatus(`Processing ${fileName}...`);
+                    }
+                    
+                    let text;
+                    
+                    if (isExcel || isPDF) {
+                        // Use binary reading for Excel and PDF files
+                        const result = await window.require('electron').ipcRenderer.invoke('read-dropped-file-binary', fileInfo.path);
+                        if (!result.success) {
+                            throw new Error(result.error);
+                        }
+                        
+                        // Convert array back to Uint8Array
+                        const data = new Uint8Array(result.data);
+                        
+                        if (isExcel && typeof XLSX !== 'undefined') {
+                            text = await processExcelDataElectron(data, fileName);
+                        } else if (isPDF) {
+                            text = await processPDFDataElectron(data, fileName);
+                        } else {
+                            throw new Error(`Unsupported file type: ${fileName}`);
+                        }
+                    } else {
+                        // Use text reading for other files
+                        const result = await window.require('electron').ipcRenderer.invoke('read-dropped-file', fileInfo.path);
+                        if (!result.success) {
+                            throw new Error(result.error);
+                        }
+                        text = result.data;
+                    }
+                    
+                    const extracted = extractData(text, fileName);
+                    
+                    // Store in tile data
+                    tile.files.push(fileName);
+                    
+                    extracted.phones.forEach(phone => tile.phones.add(phone));
+                    extracted.emails.forEach(email => tile.emails.add(email));
+                    extracted.ips.forEach(ip => tile.ips.add(ip));
+                    
+                    // Merge phone row data
+                    console.log(`Merging phone data for file ${fileName} into tile ${tile.name}`);
+                    extracted.phoneRows.forEach((rows, phone) => {
+                        console.log(`  Phone ${phone}: ${rows.length} rows to merge`);
+                        if (!tile.phoneRows.has(phone)) {
+                            tile.phoneRows.set(phone, []);
+                        }
+                        const beforeCount = tile.phoneRows.get(phone).length;
+                        tile.phoneRows.get(phone).push(...rows);
+                        const afterCount = tile.phoneRows.get(phone).length;
+                        console.log(`    Before: ${beforeCount} rows, After: ${afterCount} rows`);
+                    });
+                    
+                    // Merge email row data
+                    extracted.emailRows.forEach((rows, email) => {
+                        if (!tile.emailRows.has(email)) {
+                            tile.emailRows.set(email, []);
+                        }
+                        tile.emailRows.get(email).push(...rows);
+                    });
+                    
+                    // Merge IP row data
+                    extracted.ipRows.forEach((rows, ip) => {
+                        if (!tile.ipRows.has(ip)) {
+                            tile.ipRows.set(ip, []);
+                        }
+                        tile.ipRows.get(ip).push(...rows);
+                    });
+                    
+                    // Update file display
+                    const fileDiv = document.createElement('div');
+                    fileDiv.className = 'file-list-item';
+                    fileDiv.innerHTML = `
+                        <span>${fileName}</span>
+                        <button class="file-remove-btn" onclick="removeFile('${tileId}', '${fileName}')" title="Remove this file">✖</button>
+                    `;
+                    document.querySelector(`#${tileId} .file-list`).appendChild(fileDiv);
+                    
+                    // Update stats counters
+                    const tileElement = document.getElementById(tileId);
+                    const fileCount = tileElement.querySelector('.file-count-link');
+                    const phoneCount = tileElement.querySelector('.phone-count');
+                    const emailCount = tileElement.querySelector('.email-count');
+                    const ipCount = tileElement.querySelector('.ip-count');
+                    fileCount.textContent = tile.files.length;
+                    phoneCount.textContent = tile.phones.size;
+                    emailCount.textContent = tile.emails.size;
+                    ipCount.textContent = tile.ips.size;
+                    
+                } catch (error) {
+                    console.error('Error processing file:', fileInfo.name, error);
+                    updateStatus(`Error processing ${fileInfo.name}: ${error.message}`);
+                }
+            }
+            
+            updateAllAnalysis();
+            updateStatus('Files processed successfully');
+        }
+        
+        // Helper function to process Excel data in Electron
+        async function processExcelDataElectron(data, fileName) {
+            const workbook = XLSX.read(data, { type: 'array' });
+            console.log(`Processing Excel file with ${workbook.SheetNames.length} sheets:`, workbook.SheetNames);
+            
+            let allText = '';
+            
+            workbook.SheetNames.forEach(sheetName => {
+                console.log(`Processing sheet: ${sheetName}`);
+                const worksheet = workbook.Sheets[sheetName];
+                
+                const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:A1');
+                console.log(`Sheet range: ${range.s.r}-${range.e.r} rows, ${range.s.c}-${range.e.c} cols`);
+                
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+                    header: 1, 
+                    defval: '',
+                    raw: false
+                });
+                
+                console.log(`Extracted ${jsonData.length} rows from sheet ${sheetName}`);
+                
+                jsonData.forEach((row) => {
+                    if (Array.isArray(row) && row.length > 0) {
+                        const rowText = row.map(cell => {
+                            if (cell === null || cell === undefined) return '';
+                            return String(cell).trim();
+                        }).join('\t');
+                        
+                        if (rowText.trim().length > 0) {
+                            allText += rowText + '\n';
+                        }
+                    }
+                });
+            });
+            
+            console.log(`Excel parsing complete. Total text length: ${allText.length}`);
+            return allText;
+        }
+        
+        // Helper function to process PDF data in Electron
+        async function processPDFDataElectron(data, fileName) {
+            // For now, return empty string - PDF processing needs additional libraries
+            console.warn('PDF processing in Electron mode not fully implemented yet');
+            updateStatus(`PDF processing for ${fileName} - limited support in packaged app`);
+            return '';
+        }
+        
         
         function readFileAsText(file) {
             return new Promise((resolve, reject) => {
