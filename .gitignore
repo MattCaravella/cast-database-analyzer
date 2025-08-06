@@ -19,6 +19,13 @@ pids
 /release
 /dist-electron
 /build
+/dist
+
+# Electron artifacts
+*.exe
+*.msi
+*.dmg
+*.AppImage
 
 # Cargo lock files (regenerated automatically)
 Cargo.lock

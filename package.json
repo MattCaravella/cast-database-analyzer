@@ -2,16 +2,50 @@
   "name": "cast-database-analyzer",
   "version": "1.0.0",
   "description": "CAST Database Analyzer - FBI Telecommunications Forensics Tool",
-  "type": "module",
+  "main": "electron-main.js",
   "scripts": {
-    "dev": "cargo tauri dev",
-    "build": "cargo tauri build",
-    "tauri": "cargo tauri"
+    "start": "electron .",
+    "build": "electron-builder",
+    "dist": "electron-builder --win",
+    "pack": "electron-builder --dir"
   },
   "keywords": ["forensics", "telecommunications", "analysis"],
   "author": "FBI CAST Team",
   "license": "US Government",
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0"
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "gov.fbi.cast.analyzer",
+    "productName": "CAST Database Analyzer",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron-main.js",
+      "simple-frontend.html",
+      "cdr_analyzer_icon.ico"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "cdr_analyzer_icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "cdr_analyzer_icon.ico",
+      "uninstallerIcon": "cdr_analyzer_icon.ico",
+      "installerHeaderIcon": "cdr_analyzer_icon.ico"
+    }
   }
 }
