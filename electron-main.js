@@ -15,7 +15,8 @@ function createWindow() {
       contextIsolation: false,
       webSecurity: false,
       allowRunningInsecureContent: true,
-      experimentalFeatures: true
+      experimentalFeatures: true,
+      enableRemoteModule: true
     },
     icon: path.join(__dirname, 'cdr_analyzer_icon.ico'),
     title: 'CAST Database Analyzer',
@@ -32,6 +33,71 @@ function createWindow() {
 
   // Remove menu bar
   mainWindow.setMenuBarVisibility(false);
+
+  // Prevent default drag and drop behavior for the window
+  mainWindow.webContents.on('dom-ready', () => {
+    mainWindow.webContents.executeJavaScript(`
+      // Prevent default drag behavior on document
+      document.addEventListener('dragover', (e) => {
+        e.preventDefault();
+      });
+      
+      document.addEventListener('drop', (e) => {
+        e.preventDefault();
+      });
+      
+      // Re-enable drag and drop for our zones after DOM is ready
+      setTimeout(() => {
+        console.log('Re-initializing drag and drop...');
+        const dropZones = document.querySelectorAll('.drop-zone');
+        console.log('Found drop zones:', dropZones.length);
+        
+        dropZones.forEach((zone, index) => {
+          console.log('Setting up zone', index, zone.dataset.source);
+          
+          // Remove existing listeners first
+          zone.ondragover = null;
+          zone.ondragleave = null;
+          zone.ondrop = null;
+          
+          // Add new listeners
+          zone.ondragover = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.add('dragover');
+            return false;
+          };
+          
+          zone.ondragleave = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.remove('dragover');
+            return false;
+          };
+          
+          zone.ondrop = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.remove('dragover');
+            
+            const files = Array.from(e.dataTransfer.files);
+            const source = zone.dataset.source || 'unknown';
+            
+            console.log('Drop event - Files:', files.length, 'Source:', source);
+            
+            // Call the existing handler
+            if (window.handleFileDrop) {
+              window.handleFileDrop(files, source);
+            }
+            
+            return false;
+          };
+        });
+      }, 1000);
+      
+      console.log('Drag and drop handlers initialized for', dropZones.length, 'zones');
+    `);
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -104,4 +170,41 @@ ipcMain.handle('show-message', async (event, title, message, type = 'info') => {
     buttons: ['OK']
   });
   return result;
+});
+
+// Read dropped file content
+ipcMain.handle('read-dropped-file', async (event, filePath) => {
+  try {
+    const data = fs.readFileSync(filePath);
+    return {
+      success: true,
+      data: data,
+      path: filePath
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      path: filePath
+    };
+  }
+});
+
+// Get file info
+ipcMain.handle('get-file-info', async (event, filePath) => {
+  try {
+    const stats = fs.statSync(filePath);
+    return {
+      success: true,
+      name: path.basename(filePath),
+      size: stats.size,
+      modified: stats.mtime,
+      path: filePath
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
 });
