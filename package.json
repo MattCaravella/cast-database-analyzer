@@ -1,6 +1,6 @@
 {
   "name": "cast-database-analyzer",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "description": "CAST Database Analyzer - FBI Telecommunications Forensics Tool",
   "main": "electron-main.js",
   "scripts": {
