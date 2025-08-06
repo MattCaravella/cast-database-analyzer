@@ -18,7 +18,7 @@ function createWindow() {
       experimentalFeatures: true,
       enableRemoteModule: true
     },
-    icon: path.join(__dirname, 'src-tauri/icons/icon.png'),
+    icon: path.join(__dirname, 'src-tauri/icons/icon.ico'),
     title: 'CAST Database Analyzer',
     show: false, // Don't show until ready
     acceptFirstMouse: true,

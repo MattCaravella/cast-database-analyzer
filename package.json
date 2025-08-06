@@ -25,7 +25,7 @@
     "files": [
       "electron-main.js",
       "simple-frontend.html",
-      "src-tauri/icons/icon.png"
+      "src-tauri/icons/icon.ico"
     ],
     "win": {
       "target": [
@@ -38,14 +38,14 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "src-tauri/icons/icon.png"
+      "icon": "src-tauri/icons/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "src-tauri/icons/icon.png",
-      "uninstallerIcon": "src-tauri/icons/icon.png",
-      "installerHeaderIcon": "src-tauri/icons/icon.png"
+      "installerIcon": "src-tauri/icons/icon.ico",
+      "uninstallerIcon": "src-tauri/icons/icon.ico",
+      "installerHeaderIcon": "src-tauri/icons/icon.ico"
     }
   }
 }
