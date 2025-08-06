@@ -18,7 +18,6 @@ function createWindow() {
       experimentalFeatures: true,
       enableRemoteModule: true
     },
-    icon: path.join(__dirname, 'cdr_analyzer_icon.ico'),
     title: 'CAST Database Analyzer',
     show: false // Don't show until ready
   });

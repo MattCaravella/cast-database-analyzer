@@ -24,28 +24,20 @@
     },
     "files": [
       "electron-main.js",
-      "simple-frontend.html",
-      "cdr_analyzer_icon.ico"
+      "simple-frontend.html"
     ],
     "win": {
       "target": [
         {
           "target": "nsis",
           "arch": ["x64"]
-        },
-        {
-          "target": "portable",
-          "arch": ["x64"]
         }
       ],
-      "icon": "cdr_analyzer_icon.ico"
+      "icon": null
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "installerIcon": "cdr_analyzer_icon.ico",
-      "uninstallerIcon": "cdr_analyzer_icon.ico",
-      "installerHeaderIcon": "cdr_analyzer_icon.ico"
+      "allowToChangeInstallationDirectory": true
     }
   }
 }
