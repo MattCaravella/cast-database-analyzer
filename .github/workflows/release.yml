@@ -1,0 +1,62 @@
+name: Release CAST Database Analyzer
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Prepare frontend
+        run: |
+          if not exist dist mkdir dist
+          copy simple-frontend.html dist\index.html
+        shell: cmd
+
+      - name: Build and create release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'CAST Database Analyzer v__VERSION__'
+          releaseBody: |
+            ## CAST Database Analyzer
+
+            Professional telecommunications forensics tool.
+
+            **Installation:**
+            1. Download the `.msi` file below
+            2. Run as administrator
+            3. Launch from Start Menu
+
+            **Features:**
+            - Multi-format file support
+            - Phone number extraction
+            - Cross-reference analysis
+          releaseDraft: false
+          prerelease: false
