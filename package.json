@@ -1,0 +1,17 @@
+{
+  "name": "cast-database-analyzer",
+  "version": "1.0.0",
+  "description": "CAST Database Analyzer - FBI Telecommunications Forensics Tool",
+  "type": "module",
+  "scripts": {
+    "dev": "cargo tauri dev",
+    "build": "cargo tauri build",
+    "tauri": "cargo tauri"
+  },
+  "keywords": ["forensics", "telecommunications", "analysis"],
+  "author": "FBI CAST Team",
+  "license": "US Government",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

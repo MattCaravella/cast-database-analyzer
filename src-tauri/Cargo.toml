@@ -1,0 +1,26 @@
+[package]
+name = "cast-analyzer"
+version = "1.0.0"
+description = "CAST Database Analyzer - FBI Telecommunications Forensics Tool"
+authors = ["FBI CAST Team"]
+license = "US Government"
+repository = ""
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = [] }
+tauri-plugin-fs = "2.0"
+tauri-plugin-dialog = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[[bin]]
+name = "cast-analyzer"
+path = "src/main.rs"
