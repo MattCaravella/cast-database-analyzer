@@ -25,7 +25,7 @@
     "files": [
       "electron-main.js",
       "simple-frontend.html",
-      "cdr_analyzer_icon.ico"
+      "src-tauri/icons/icon.png"
     ],
     "win": {
       "target": [
@@ -38,14 +38,14 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "cdr_analyzer_icon.ico"
+      "icon": "src-tauri/icons/icon.png"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "cdr_analyzer_icon.ico",
-      "uninstallerIcon": "cdr_analyzer_icon.ico",
-      "installerHeaderIcon": "cdr_analyzer_icon.ico"
+      "installerIcon": "src-tauri/icons/icon.png",
+      "uninstallerIcon": "src-tauri/icons/icon.png",
+      "installerHeaderIcon": "src-tauri/icons/icon.png"
     }
   }
 }
