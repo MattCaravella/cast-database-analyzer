@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -38,6 +41,7 @@ jobs:
           files: |
             dist-electron/*.exe
             dist-electron/*.msi
+          token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
           prerelease: false
           name: 'CAST Database Analyzer ${{ github.ref_name }}'
