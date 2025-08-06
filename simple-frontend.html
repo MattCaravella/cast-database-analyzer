@@ -846,7 +846,7 @@
         async function handleFileDrop(files, source) {
             if (source === 'create') {
                 // First file drop on create tile - ask for tile name
-                const tileName = prompt('Enter a name for this source tile:');
+                const tileName = `Source_${Date.now()}`;
                 if (!tileName) return;
                 
                 const tileId = createSourceTile(tileName);
@@ -929,7 +929,7 @@
 
         function renameTile(tileId) {
             const tile = sourceTiles.get(tileId);
-            const newName = prompt('Enter new name for this tile:', tile.name);
+            const newName = `${tile.name}_renamed`;
             if (newName && newName !== tile.name) {
                 tile.name = newName;
                 document.querySelector(`#${tileId} h3`).textContent = newName;
