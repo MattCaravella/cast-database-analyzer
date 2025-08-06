@@ -38,7 +38,7 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "src-tauri/icons/icon.png"
+      "icon": "src-tauri/icons/icon.ico"
     },
     "msi": {
       "oneClick": false,
