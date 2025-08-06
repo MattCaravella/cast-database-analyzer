@@ -48,8 +48,9 @@ jobs:
           cargo install tauri-cli --version "^2.0.0" --locked
           
       - name: Build Tauri app
-        run: cargo tauri build
-        working-directory: .
+        run: |
+          cd src-tauri
+          cargo tauri build --bundles msi,nsis
         
       - name: Debug - List build artifacts
         run: |
