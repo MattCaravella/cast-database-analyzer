@@ -24,7 +24,8 @@
     },
     "files": [
       "electron-main.js",
-      "simple-frontend.html"
+      "simple-frontend.html",
+      "src-tauri/icons/**/*"
     ],
     "win": {
       "target": [
@@ -37,7 +38,11 @@
           "arch": ["x64"]
         }
       ],
-      "icon": null
+      "icon": "src-tauri/icons/icon.png"
+    },
+    "msi": {
+      "oneClick": false,
+      "upgradeCode": "{B8A3B3F0-1234-5678-9ABC-DEF012345678}"
     },
     "nsis": {
       "oneClick": false,
