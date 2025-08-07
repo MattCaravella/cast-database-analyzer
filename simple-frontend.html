@@ -1105,8 +1105,14 @@
             console.log('Processing file data:', fileObj.name);
             
             try {
+                // Get the file content from either 'content' or 'data' property
+                const fileContent = fileObj.content || fileObj.data;
+                if (!fileContent) {
+                    throw new Error(`No content found for file ${fileObj.name}`);
+                }
+                
                 // Use your existing extraction logic
-                const extracted = extractData(fileObj.data, fileObj.name);
+                const extracted = extractData(fileContent, fileObj.name);
                 
                 // Handle the results based on your source logic
                 if (source === 'create') {

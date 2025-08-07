@@ -212,18 +212,29 @@ ipcMain.handle('show-prompt', async (event, title, message, defaultValue = '') =
 // Read dropped file content
 ipcMain.handle('read-dropped-file', async (event, filePath) => {
   try {
-    const data = fs.readFileSync(filePath);
+    // Read as UTF-8 text by default
+    const data = fs.readFileSync(filePath, 'utf8');
     return {
       success: true,
       data: data,
       path: filePath
     };
   } catch (error) {
-    return {
-      success: false,
-      error: error.message,
-      path: filePath
-    };
+    // If UTF-8 fails, try reading as buffer
+    try {
+      const buffer = fs.readFileSync(filePath);
+      return {
+        success: true,
+        data: buffer.toString('utf8'),
+        path: filePath
+      };
+    } catch (bufferError) {
+      return {
+        success: false,
+        error: error.message,
+        path: filePath
+      };
+    }
   }
 });
 
