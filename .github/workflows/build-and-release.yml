@@ -12,7 +12,7 @@ jobs:
     
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest]
         
     steps:
     - name: Checkout code
@@ -28,28 +28,15 @@ jobs:
       run: npm ci
       
     - name: Build for Windows
-      if: matrix.os == 'windows-latest'
       run: npm run dist
       
-    - name: Build for Linux
-      if: matrix.os == 'ubuntu-latest'
-      run: npm run dist-linux
-      
     - name: Upload Windows artifacts
-      if: matrix.os == 'windows-latest'
       uses: actions/upload-artifact@v4
       with:
         name: windows-build
-        path: dist-electron/*.exe
-        
-    - name: Upload Linux artifacts
-      if: matrix.os == 'ubuntu-latest'
-      uses: actions/upload-artifact@v4
-      with:
-        name: linux-build
         path: |
-          dist-electron/*.AppImage
-          dist-electron/*.deb
+          dist-electron/*.exe
+          dist-electron/*.msi
           
   release:
     needs: build
@@ -61,12 +48,6 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: windows-build
-        path: ./release
-        
-    - name: Download Linux artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: linux-build
         path: ./release
         
     - name: Create Release
