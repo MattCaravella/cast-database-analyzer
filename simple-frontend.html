@@ -753,6 +753,17 @@
         let currentInputCallback = null;
         let pendingFiles = null;
         
+        // Make functions globally available for onclick handlers
+        window.loadDatabase = null;
+        window.saveDatabase = null;
+        window.clearAll = null;
+        window.performGlobalSearch = null;
+        window.testTauriConnection = null;
+        window.closeFileModal = null;
+        window.closeSearchModal = null;
+        window.closeInputModal = null;
+        window.confirmInputModal = null;
+        
         // Check if we're in Tauri or Electron and get the API
         let isTauri = window.__TAURI__ !== undefined;
         const isElectron = window.electron && window.electron.isElectron;
@@ -796,7 +807,7 @@
         }
         
         // Test Tauri backend connection
-        async function testTauriConnection() {
+        window.testTauriConnection = async function() {
             console.log('🧪 Testing Tauri connection...');
             
             if (!isTauri || !tauriInvoke) {
@@ -904,7 +915,7 @@
             setTimeout(() => inputField.focus(), 100);
         }
 
-        function closeInputModal() {
+        window.closeInputModal = function() {
             const modal = document.getElementById('inputModal');
             if (modal) {
                 modal.style.display = 'none';
@@ -913,7 +924,7 @@
             pendingFiles = null;
         }
 
-        function confirmInputModal() {
+        window.confirmInputModal = function() {
             const inputField = document.getElementById('input-modal-field');
             if (!inputField) return;
             
@@ -1182,7 +1193,7 @@
             modal.style.display = 'block';
         }
 
-        function closeFileModal() {
+        window.closeFileModal = function() {
             document.getElementById('fileModal').style.display = 'none';
         }
 
@@ -3552,7 +3563,7 @@
             updateStatus('Analysis updated');
         }
 
-        async function saveDatabase() {
+        window.saveDatabase = async function() {
             if (sourceTiles.size === 0) {
                 alert('No data to save');
                 return;
@@ -3664,7 +3675,7 @@
             updateStatus('Database saved to Downloads folder');
         }
 
-        async function loadDatabase() {
+        window.loadDatabase = async function() {
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = '.db,.json';
@@ -3982,7 +3993,7 @@
             }
         }
 
-        function clearAll() {
+        window.clearAll = function() {
             if (confirm('Are you sure you want to clear all data?')) {
                 // Reset all source tiles
                 sourceTiles.clear();
@@ -4012,7 +4023,7 @@
             }
         }
 
-        function performGlobalSearch() {
+        window.performGlobalSearch = function() {
             const searchTerm = document.getElementById('global-search').value.trim();
             if (!searchTerm) {
                 alert('Please enter a search term');
@@ -4165,7 +4176,7 @@
             }
         });
 
-        function closeSearchModal() {
+        window.closeSearchModal = function() {
             document.getElementById('searchModal').style.display = 'none';
         }
 
