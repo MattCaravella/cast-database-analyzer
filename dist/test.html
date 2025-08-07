@@ -1,10 +1,86 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Test</title>
+    <title>Tauri Test</title>
+    <style>
+        body {
+            background: #333;
+            color: white;
+            font-family: Arial;
+            padding: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #status {
+            margin: 20px 0;
+            padding: 20px;
+            background: #444;
+            border-radius: 5px;
+        }
+    </style>
 </head>
 <body>
-    <h1>Tauri is working!</h1>
-    <p>If you see this, the app is running correctly.</p>
+    <h1>Tauri Debug Test</h1>
+    
+    <div id="status">
+        <p>JavaScript Status: <span id="js-status">NOT RUNNING</span></p>
+        <p>Tauri Available: <span id="tauri-status">CHECKING...</span></p>
+        <p>Time: <span id="time">-</span></p>
+    </div>
+    
+    <button onclick="alert('Basic Alert Test')">Test Alert</button>
+    <button onclick="testConsole()">Test Console</button>
+    <button onclick="testTauri()">Test Tauri API</button>
+    <button id="dynamic-btn">Dynamic Button (addEventListener)</button>
+    
+    <script>
+        // Immediately show JavaScript is running
+        document.getElementById('js-status').innerHTML = '<span style="color: green;">RUNNING</span>';
+        
+        // Update time every second to show JS is active
+        setInterval(() => {
+            document.getElementById('time').textContent = new Date().toLocaleTimeString();
+        }, 1000);
+        
+        // Check Tauri
+        const hasTauri = typeof window.__TAURI__ !== 'undefined';
+        document.getElementById('tauri-status').innerHTML = hasTauri 
+            ? '<span style="color: green;">AVAILABLE</span>' 
+            : '<span style="color: red;">NOT AVAILABLE</span>';
+        
+        // Test functions
+        function testConsole() {
+            console.log('Console test:', new Date());
+            alert('Check console - message logged');
+        }
+        
+        function testTauri() {
+            if (window.__TAURI__) {
+                window.__TAURI__.core.invoke('show_message', {
+                    title: 'Test',
+                    message: 'Tauri backend connected!'
+                }).then(() => {
+                    alert('Tauri command succeeded!');
+                }).catch(err => {
+                    alert('Tauri error: ' + err);
+                });
+            } else {
+                alert('Tauri API not available!');
+            }
+        }
+        
+        // Test addEventListener
+        document.getElementById('dynamic-btn').addEventListener('click', () => {
+            alert('addEventListener works!');
+        });
+        
+        console.log('=== TEST PAGE LOADED ===');
+        console.log('Tauri available:', hasTauri);
+        console.log('Window object:', window);
+    </script>
 </body>
 </html>
