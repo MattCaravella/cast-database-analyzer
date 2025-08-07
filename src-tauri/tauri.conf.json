@@ -12,13 +12,16 @@
         "width": 1400,
         "height": 900,
         "resizable": true,
-        "center": true
+        "center": true,
+        "fileDropEnabled": true,
+        "webSecurity": false,
+        "devtools": true
       }
     ],
     "security": {
       "csp": null
     },
-    "withGlobalTauri": false
+    "withGlobalTauri": true
   },
   "bundle": {
     "active": true,
