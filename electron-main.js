@@ -171,6 +171,23 @@ ipcMain.handle('show-message', async (event, title, message, type = 'info') => {
   return result;
 });
 
+// Custom prompt dialog using Electron's native dialog
+ipcMain.handle('show-prompt', async (event, title, message, defaultValue = '') => {
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    title: title,
+    message: message,
+    detail: `Default: ${defaultValue}`,
+    buttons: ['OK', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1
+  });
+  
+  // For now, return the default value if OK is clicked
+  // In a real implementation, you'd need a proper input dialog
+  return result.response === 0 ? defaultValue : null;
+});
+
 // Read dropped file content
 ipcMain.handle('read-dropped-file', async (event, filePath) => {
   try {

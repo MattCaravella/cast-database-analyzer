@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CAST Database Analyzer</title>
+    <!-- CACHE BUSTER v1.3.4 - ALL PROMPT() CALLS REMOVED -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- PDF.js for automatic PDF text extraction -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -551,6 +552,64 @@
             border-radius: 4px;
             font-size: 0.9rem;
         }
+        
+        /* Input Modal for Tile Names */
+        .input-modal {
+            display: none;
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+
+        .input-modal-content {
+            background-color: var(--bg-secondary);
+            margin: 25% auto;
+            padding: 2rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            width: 400px;
+            max-width: 90%;
+        }
+
+        .input-modal h3 {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .input-modal input {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .input-modal input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .input-modal-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+        }
+
+        .btn-cancel {
+            background-color: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        .btn-cancel:hover {
+            background-color: var(--border);
+        }
     </style>
 </head>
 <body>
@@ -663,6 +722,8 @@
         // Data storage
         let sourceTiles = new Map(); // Map of tileId -> { name, files: [], phones: new Set(), emails: new Set(), ips: new Set(), phoneRows: new Map(), emailRows: new Map(), ipRows: new Map() }
         let tileCounter = 0;
+        let currentInputCallback = null;
+        let pendingFiles = null;
         
         // Pre-compiled regex patterns for better performance
         const patterns = {
@@ -697,7 +758,61 @@
             setupDragAndDrop();
             setupTabs();
             setupResizer();
+            setupInputModal();
         });
+
+        // Input Modal Functions
+        function setupInputModal() {
+            const inputField = document.getElementById('input-modal-field');
+            if (inputField) {
+                inputField.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        confirmInputModal();
+                    }
+                });
+            }
+        }
+
+        function showInputModal(title, placeholder = '', callback) {
+            const modal = document.getElementById('inputModal');
+            const titleElement = document.getElementById('input-modal-title');
+            const inputField = document.getElementById('input-modal-field');
+            
+            if (!modal || !titleElement || !inputField) {
+                console.error('Input modal elements not found');
+                return;
+            }
+            
+            titleElement.textContent = title;
+            inputField.placeholder = placeholder;
+            inputField.value = '';
+            currentInputCallback = callback;
+            
+            modal.style.display = 'block';
+            setTimeout(() => inputField.focus(), 100);
+        }
+
+        function closeInputModal() {
+            const modal = document.getElementById('inputModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            currentInputCallback = null;
+            pendingFiles = null;
+        }
+
+        function confirmInputModal() {
+            const inputField = document.getElementById('input-modal-field');
+            if (!inputField) return;
+            
+            const value = inputField.value.trim();
+            
+            if (value && currentInputCallback) {
+                currentInputCallback(value);
+            }
+            
+            closeInputModal();
+        }
 
         // Setup tab functionality
         function setupTabs() {
@@ -845,15 +960,20 @@
 
         async function handleFileDrop(files, source) {
             if (source === 'create') {
-                // First file drop on create tile - ask for tile name
-                const tileName = prompt('Enter a name for this source tile:');
-                if (!tileName) return;
-                
-                const tileId = createSourceTile(tileName);
-                await processFiles(files, tileId);
-                
-                // Create new "Create Source Tile" 
-                createNewCreateTile();
+                // Store files temporarily and show input modal
+                pendingFiles = files;
+                showInputModal('Enter a name for this source tile:', 'Source name...', async (tileName) => {
+                    if (tileName && pendingFiles) {
+                        try {
+                            const tileId = createSourceTile(tileName);
+                            await processFiles(pendingFiles, tileId);
+                            createNewCreateTile();
+                            console.log(`Created tile "${tileName}" with ${pendingFiles.length} files`);
+                        } catch (error) {
+                            console.error('Error creating tile:', error);
+                        }
+                    }
+                });
             } else {
                 // Files dropped on existing tile
                 await processFiles(files, source);
@@ -929,11 +1049,20 @@
 
         function renameTile(tileId) {
             const tile = sourceTiles.get(tileId);
-            const newName = prompt('Enter new name for this tile:', tile.name);
-            if (newName && newName !== tile.name) {
-                tile.name = newName;
-                document.querySelector(`#${tileId} h3`).textContent = newName;
-            }
+            if (!tile) return;
+            
+            showInputModal('Rename Tile', tile.name, (newName) => {
+                if (newName && newName !== tile.name) {
+                    tile.name = newName;
+                    const titleElement = document.querySelector(`#${tileId} .tile-title`);
+                    if (titleElement) {
+                        const truncatedName = newName.length > 15 ? newName.substring(0, 15) + '...' : newName;
+                        titleElement.textContent = truncatedName;
+                        titleElement.title = newName;
+                    }
+                    console.log(`Renamed tile to "${newName}"`);
+                }
+            });
         }
         
         function normalizePhone(phone) {
@@ -3744,5 +3873,17 @@
             modal.style.display = 'block';
         }
     </script>
+    
+    <!-- Input Modal for Tile Names -->
+    <div id="inputModal" class="input-modal">
+        <div class="input-modal-content">
+            <h3 id="input-modal-title">Enter Tile Name</h3>
+            <input type="text" id="input-modal-field" placeholder="Enter name..." />
+            <div class="input-modal-buttons">
+                <button class="btn btn-cancel" onclick="closeInputModal()">Cancel</button>
+                <button class="btn" onclick="confirmInputModal()">Create</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
