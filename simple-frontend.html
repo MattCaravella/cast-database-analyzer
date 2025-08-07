@@ -986,6 +986,101 @@
             return await handleFileDrop(files, source);
         }
 
+        // Updated processFiles function for Electron
+        async function processFileData(fileObj, source) {
+            console.log('Processing file data:', fileObj.name);
+            
+            try {
+                // Use your existing extraction logic
+                const extracted = extractData(fileObj.data, fileObj.name);
+                
+                // Handle the results based on your source logic
+                if (source === 'create') {
+                    // Use modal instead of prompt()
+                    pendingFiles = [fileObj];
+                    showInputModal('Enter a name for this source tile:', 'Source name...', async (tileName) => {
+                        if (tileName && pendingFiles) {
+                            try {
+                                const tileId = createSourceTile(tileName);
+                                // Process the extracted data
+                                const tile = sourceTiles.get(tileId);
+                                if (tile) {
+                                    tile.files.push(fileObj.name);
+                                    extracted.phones.forEach(phone => tile.phones.add(phone));
+                                    extracted.emails.forEach(email => tile.emails.add(email));
+                                    extracted.ips.forEach(ip => tile.ips.add(ip));
+                                    
+                                    // Add row data
+                                    extracted.phoneRows.forEach((rows, phone) => {
+                                        if (!tile.phoneRows.has(phone)) {
+                                            tile.phoneRows.set(phone, []);
+                                        }
+                                        tile.phoneRows.get(phone).push(...rows);
+                                    });
+                                    
+                                    extracted.emailRows.forEach((rows, email) => {
+                                        if (!tile.emailRows.has(email)) {
+                                            tile.emailRows.set(email, []);
+                                        }
+                                        tile.emailRows.get(email).push(...rows);
+                                    });
+                                    
+                                    extracted.ipRows.forEach((rows, ip) => {
+                                        if (!tile.ipRows.has(ip)) {
+                                            tile.ipRows.set(ip, []);
+                                        }
+                                        tile.ipRows.get(ip).push(...rows);
+                                    });
+                                    
+                                    updateTileDisplay(tileId);
+                                }
+                                createNewCreateTile();
+                                console.log(`Created tile "${tileName}" and processed ${fileObj.name}`);
+                            } catch (error) {
+                                console.error('Error creating tile:', error);
+                            }
+                        }
+                    });
+                } else {
+                    // Process for existing tile
+                    const tile = sourceTiles.get(source);
+                    if (tile) {
+                        tile.files.push(fileObj.name);
+                        extracted.phones.forEach(phone => tile.phones.add(phone));
+                        extracted.emails.forEach(email => tile.emails.add(email));
+                        extracted.ips.forEach(ip => tile.ips.add(ip));
+                        
+                        // Add row data
+                        extracted.phoneRows.forEach((rows, phone) => {
+                            if (!tile.phoneRows.has(phone)) {
+                                tile.phoneRows.set(phone, []);
+                            }
+                            tile.phoneRows.get(phone).push(...rows);
+                        });
+                        
+                        extracted.emailRows.forEach((rows, email) => {
+                            if (!tile.emailRows.has(email)) {
+                                tile.emailRows.set(email, []);
+                            }
+                            tile.emailRows.get(email).push(...rows);
+                        });
+                        
+                        extracted.ipRows.forEach((rows, ip) => {
+                            if (!tile.ipRows.has(ip)) {
+                                tile.ipRows.set(ip, []);
+                            }
+                            tile.ipRows.get(ip).push(...rows);
+                        });
+                        
+                        updateTileDisplay(source);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error processing file data:', error);
+            }
+        }
+
         function createSourceTile(name) {
             tileCounter++;
             const tileId = `tile-${tileCounter}`;
