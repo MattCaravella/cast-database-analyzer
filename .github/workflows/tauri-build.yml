@@ -32,10 +32,13 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
+    - name: Prepare frontend
+      run: node build-tauri.js
+
     - name: Build Tauri app
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: npm run tauri:build
+      run: cargo tauri build
 
     - name: List build artifacts
       run: |
