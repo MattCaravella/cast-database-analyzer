@@ -1106,9 +1106,20 @@
             
             try {
                 // Get the file content from either 'content' or 'data' property
-                const fileContent = fileObj.content || fileObj.data;
+                let fileContent = fileObj.content || fileObj.data;
                 if (!fileContent) {
                     throw new Error(`No content found for file ${fileObj.name}`);
+                }
+                
+                // Ensure content is a string
+                if (typeof fileContent !== 'string') {
+                    if (fileContent instanceof ArrayBuffer) {
+                        fileContent = new TextDecoder().decode(fileContent);
+                    } else if (fileContent && fileContent.toString) {
+                        fileContent = fileContent.toString();
+                    } else {
+                        throw new Error(`Invalid content type for file ${fileObj.name}: ${typeof fileContent}`);
+                    }
                 }
                 
                 // Use your existing extraction logic
@@ -2159,6 +2170,19 @@
         
         function extractData(text, fileName) {
             console.log(`\n🔍 ===== DEEP DIVE EXTRACTION: ${fileName} =====`);
+            
+            // Ensure text is a string
+            if (typeof text !== 'string') {
+                if (text instanceof ArrayBuffer) {
+                    text = new TextDecoder().decode(text);
+                } else if (text && text.toString) {
+                    text = text.toString();
+                } else {
+                    console.error('Invalid text data type:', typeof text);
+                    return { phones: [], emails: [], ips: [], urls: [], addresses: [], names: [], coordinates: [] };
+                }
+            }
+            
             console.log(`📊 Text length: ${text.length} characters`);
             console.log(`📝 First 200 chars:`, text.substring(0, 200));
             console.log(`📝 Last 200 chars:`, text.substring(text.length - 200));

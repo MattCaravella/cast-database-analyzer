@@ -40,6 +40,8 @@
       ],
       "icon": "src-tauri/icons/icon.png"
     },
+    "linux": false,
+    "mac": false,
     "msi": {
       "oneClick": false,
       "upgradeCode": "{B8A3B3F0-1234-5678-9ABC-DEF012345678}"
