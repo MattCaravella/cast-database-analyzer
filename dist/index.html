@@ -980,6 +980,12 @@
             }
         }
 
+        // Electron-specific file drop handler (alias for handleFileDrop)
+        async function handleElectronFileDrop(files, source) {
+            console.log('Electron file drop handler called');
+            return await handleFileDrop(files, source);
+        }
+
         function createSourceTile(name) {
             tileCounter++;
             const tileId = `tile-${tileCounter}`;
