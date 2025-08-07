@@ -45,9 +45,9 @@ function createWindow() {
         e.preventDefault();
       });
       
-      // Re-enable drag and drop for our zones after DOM is ready
+      // Setup drag and drop for our zones after DOM is ready
       setTimeout(() => {
-        console.log('Re-initializing drag and drop...');
+        console.log('Initializing Electron drag and drop...');
         const dropZones = document.querySelectorAll('.drop-zone');
         console.log('Found drop zones:', dropZones.length);
         
@@ -74,19 +74,40 @@ function createWindow() {
             return false;
           };
           
-          zone.ondrop = (e) => {
+          zone.ondrop = async (e) => {
             e.preventDefault();
             e.stopPropagation();
             zone.classList.remove('dragover');
             
-            const files = Array.from(e.dataTransfer.files);
             const source = zone.dataset.source || 'unknown';
+            console.log('Electron drop event - Source:', source);
             
-            console.log('Drop event - Files:', files.length, 'Source:', source);
-            
-            // Call the existing handler
-            if (window.handleFileDrop) {
-              window.handleFileDrop(files, source);
+            try {
+              // Get file paths from the dropped files
+              const files = [];
+              for (let i = 0; i < e.dataTransfer.files.length; i++) {
+                const file = e.dataTransfer.files[i];
+                // In packaged Electron app, we need to use webkitRelativePath or the File object directly
+                files.push({
+                  name: file.name,
+                  path: file.path || file.webkitRelativePath || file.name,
+                  size: file.size,
+                  type: file.type,
+                  file: file // Keep the original file object
+                });
+              }
+              
+              console.log('Files to process:', files);
+              
+              // Call the Electron-specific handler
+              if (window.handleElectronFileDrop) {
+                await window.handleElectronFileDrop(files, source);
+              } else if (window.handleFileDrop) {
+                // Fallback to regular handler
+                await window.handleFileDrop(Array.from(e.dataTransfer.files), source);
+              }
+            } catch (error) {
+              console.error('Error in Electron drop handler:', error);
             }
             
             return false;
@@ -94,7 +115,7 @@ function createWindow() {
         });
       }, 1000);
       
-      console.log('Drag and drop handlers initialized for', dropZones.length, 'zones');
+      console.log('Electron drag and drop handlers initialized');
     `);
   });
 

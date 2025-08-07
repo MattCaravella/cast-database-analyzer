@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electron', {
   showSaveDialog: (defaultName) => ipcRenderer.invoke('save-dialog', defaultName),
   showOpenDialog: () => ipcRenderer.invoke('open-dialog'),
   showMessage: (title, message, type) => ipcRenderer.invoke('show-message', title, message, type),
+  showPrompt: (title, message, defaultValue) => ipcRenderer.invoke('show-prompt', title, message, defaultValue),
   
   // Drag and drop operations
   startDrag: (fileName) => ipcRenderer.send('ondragstart', fileName),
@@ -26,5 +27,22 @@ contextBridge.exposeInMainWorld('electron', {
   getVersion: () => ipcRenderer.invoke('get-version')
 });
 
+// Override window.prompt to prevent errors in packaged app
+window.prompt = function(message, defaultValue) {
+  console.warn('window.prompt called in Electron app - using modal instead');
+  // Return null to prevent any code from trying to use prompt
+  return null;
+};
+
+// Override window.alert to use Electron's dialog
+const originalAlert = window.alert;
+window.alert = function(message) {
+  if (window.electron && window.electron.showMessage) {
+    window.electron.showMessage('Alert', String(message), 'info');
+  } else {
+    originalAlert(message);
+  }
+};
+
 // Log that preload script has loaded
-console.log('Preload script loaded successfully');
+console.log('Preload script loaded successfully - prompt/alert overrides in place');
