@@ -1,9 +1,13 @@
 {
   "name": "cast-database-analyzer",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "CAST Database Analyzer - FBI Telecommunications Forensics Tool",
-  "main": "electron-main.js",
+  "main": "simple-frontend.html",
   "scripts": {
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "node build-tauri.js && tauri build",
+    "tauri:prebuild": "node build-tauri.js",
     "start": "electron .",
     "build": "electron-builder",
     "dist": "electron-builder --win",
@@ -13,6 +17,7 @@
   "author": "FBI CAST Team",
   "license": "US Government",
   "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1"
   },

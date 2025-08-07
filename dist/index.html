@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CAST Database Analyzer</title>
-    <!-- CACHE BUSTER v1.3.4 - ALL PROMPT() CALLS REMOVED -->
+    <!-- CACHE BUSTER v1.4.3 - TAURI VERSION -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- PDF.js for automatic PDF text extraction -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- Tauri API -->
     <script>
         // Configure PDF.js worker
         if (typeof pdfjsLib !== 'undefined') {
@@ -725,9 +726,18 @@
         let currentInputCallback = null;
         let pendingFiles = null;
         
-        // Check if we're in Electron and get the API
+        // Check if we're in Tauri or Electron and get the API
+        const isTauri = window.__TAURI__ !== undefined;
         const isElectron = window.electron && window.electron.isElectron;
+        console.log('Running in Tauri mode:', isTauri);
         console.log('Running in Electron mode:', isElectron);
+        
+        // Tauri API imports
+        let tauriInvoke, tauriListen;
+        if (isTauri) {
+            tauriInvoke = window.__TAURI__.core.invoke;
+            tauriListen = window.__TAURI__.event.listen;
+        }
         
         // Pre-compiled regex patterns for better performance
         const patterns = {
@@ -758,8 +768,9 @@
         };
         
         // Initialize on page load
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             setupDragAndDrop();
+            await setupTauriDragDrop(); // Initialize Tauri drag-drop if available
             setupTabs();
             setupResizer();
             setupInputModal();
@@ -869,7 +880,11 @@
                     console.log('Drop event fired!');
                     
                     try {
-                        if (isElectron) {
+                        if (isTauri) {
+                            // In Tauri, file paths are provided through the drag event
+                            // We'll handle this through Tauri's event system
+                            console.log('Tauri drag-drop detected - files will be processed via event listener');
+                        } else if (isElectron) {
                             // In Electron, get file paths from dataTransfer
                             const files = [];
                             
@@ -899,6 +914,66 @@
                     handleFileDrop(Array.from(e.target.files), source);
                 });
             });
+        }
+        
+        // Tauri-specific drag and drop handler
+        async function setupTauriDragDrop() {
+            if (!isTauri || !tauriListen) return;
+            
+            try {
+                // Listen for file drop events from Tauri
+                await tauriListen('tauri://drag-drop', async (event) => {
+                    console.log('Tauri drag-drop event:', event);
+                    const filePaths = event.payload.paths || event.payload;
+                    
+                    if (filePaths && filePaths.length > 0) {
+                        console.log('Processing', filePaths.length, 'dropped files in Tauri:', filePaths);
+                        await handleTauriFileDrop(filePaths, 'create'); // Default to 'create' source
+                    }
+                });
+                
+                console.log('Tauri drag-drop listener registered');
+            } catch (error) {
+                console.error('Failed to setup Tauri drag-drop:', error);
+            }
+        }
+        
+        // Handle files dropped in Tauri
+        async function handleTauriFileDrop(filePaths, source) {
+            try {
+                updateStatus('Reading dropped files...');
+                showProgress();
+                updateProgress(0, 'Reading files...');
+                
+                // Use Tauri command to read the dropped files
+                const fileData = await tauriInvoke('read_dropped_files', { paths: filePaths });
+                
+                updateProgress(50, 'Processing file content...');
+                
+                // Process each file
+                for (let i = 0; i < fileData.length; i++) {
+                    const file = fileData[i];
+                    console.log(`Processing file ${i + 1}/${fileData.length}: ${file.name}`);
+                    
+                    // Create a file object similar to the Electron format
+                    const fileObj = {
+                        name: file.name,
+                        content: file.content,
+                        data: file.content
+                    };
+                    
+                    await processFileData(fileObj, source);
+                    updateProgress(50 + (i + 1) / fileData.length * 50, `Processed ${i + 1}/${fileData.length} files`);
+                }
+                
+                updateStatus(`Successfully processed ${fileData.length} files`);
+                hideProgress();
+                
+            } catch (error) {
+                console.error('Error processing Tauri file drop:', error);
+                updateStatus('Error processing dropped files');
+                hideProgress();
+            }
         }
         
         function updateStatus(text) {
@@ -1012,6 +1087,22 @@
             }
         }
 
+        // Helper function to read file content using FileReader
+        async function readFileContent(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = reject;
+                
+                // Determine read method based on file type
+                if (file.type && (file.type.includes('text') || file.type.includes('json') || file.type.includes('csv'))) {
+                    reader.readAsText(file);
+                } else {
+                    reader.readAsArrayBuffer(file);
+                }
+            });
+        }
+
         // Electron-specific file drop handler
         async function handleElectronFileDrop(fileInfos, source) {
             console.log('Electron file drop handler called with', fileInfos.length, 'files');
@@ -1019,19 +1110,38 @@
             try {
                 const processedFiles = [];
                 
-                // Read file contents using Electron API
+                // Read file contents using Electron API or FileReader as fallback
                 for (const fileInfo of fileInfos) {
                     try {
-                        const result = await window.electron.readDroppedFile(fileInfo.path);
-                        if (result.success) {
+                        let fileContent = null;
+                        
+                        // First try to read using Electron API if path is available
+                        if (fileInfo.path && fileInfo.path !== fileInfo.name && window.electron && window.electron.readDroppedFile) {
+                            try {
+                                const result = await window.electron.readDroppedFile(fileInfo.path);
+                                if (result.success) {
+                                    fileContent = result.data;
+                                }
+                            } catch (electronError) {
+                                console.log('Electron API failed, trying fallback:', electronError.message);
+                            }
+                        }
+                        
+                        // Fallback: Use FileReader if we have the File object
+                        if (!fileContent && fileInfo.file) {
+                            console.log('Using FileReader fallback for:', fileInfo.name);
+                            fileContent = await readFileContent(fileInfo.file);
+                        }
+                        
+                        if (fileContent) {
                             processedFiles.push({
                                 name: fileInfo.name,
-                                path: fileInfo.path,
+                                path: fileInfo.path || fileInfo.name,
                                 size: fileInfo.size,
-                                content: result.data
+                                content: fileContent
                             });
                         } else {
-                            console.error('Failed to read file:', fileInfo.name, result.error);
+                            console.error('Cannot read file - no content available:', fileInfo.name);
                         }
                     } catch (error) {
                         console.error('Error reading file:', fileInfo.name, error);
@@ -1070,8 +1180,25 @@
             console.log('Processing file data:', fileObj.name);
             
             try {
+                // Get the file content from either 'content' or 'data' property
+                let fileContent = fileObj.content || fileObj.data;
+                if (!fileContent) {
+                    throw new Error(`No content found for file ${fileObj.name}`);
+                }
+                
+                // Ensure content is a string
+                if (typeof fileContent !== 'string') {
+                    if (fileContent instanceof ArrayBuffer) {
+                        fileContent = new TextDecoder().decode(fileContent);
+                    } else if (fileContent && fileContent.toString) {
+                        fileContent = fileContent.toString();
+                    } else {
+                        throw new Error(`Invalid content type for file ${fileObj.name}: ${typeof fileContent}`);
+                    }
+                }
+                
                 // Use your existing extraction logic
-                const extracted = extractData(fileObj.data, fileObj.name);
+                const extracted = extractData(fileContent, fileObj.name);
                 
                 // Handle the results based on your source logic
                 if (source === 'create') {
@@ -2118,6 +2245,19 @@
         
         function extractData(text, fileName) {
             console.log(`\n🔍 ===== DEEP DIVE EXTRACTION: ${fileName} =====`);
+            
+            // Ensure text is a string
+            if (typeof text !== 'string') {
+                if (text instanceof ArrayBuffer) {
+                    text = new TextDecoder().decode(text);
+                } else if (text && text.toString) {
+                    text = text.toString();
+                } else {
+                    console.error('Invalid text data type:', typeof text);
+                    return { phones: [], emails: [], ips: [], urls: [], addresses: [], names: [], coordinates: [] };
+                }
+            }
+            
             console.log(`📊 Text length: ${text.length} characters`);
             console.log(`📝 First 200 chars:`, text.substring(0, 200));
             console.log(`📝 Last 200 chars:`, text.substring(text.length - 200));

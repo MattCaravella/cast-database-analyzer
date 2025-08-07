@@ -1,6 +1,47 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+struct FileData {
+    name: String,
+    content: String,
+}
+
+// Read file content from dropped files
+#[tauri::command]
+async fn read_dropped_files(paths: Vec<String>) -> Result<Vec<FileData>, String> {
+    let mut files = Vec::new();
+    
+    for path in paths {
+        match std::fs::read_to_string(&path) {
+            Ok(content) => {
+                let file_name = std::path::Path::new(&path)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or(&path)
+                    .to_string();
+                    
+                files.push(FileData {
+                    name: file_name,
+                    content,
+                });
+            }
+            Err(e) => {
+                eprintln!("Error reading file {}: {}", path, e);
+                // Continue with other files instead of failing entirely
+            }
+        }
+    }
+    
+    if files.is_empty() {
+        Err("No files could be read".to_string())
+    } else {
+        Ok(files)
+    }
+}
+
 // Simple save file command for Tauri 2.x with plugins
 #[tauri::command]
 async fn save_database_file(app: tauri::AppHandle, data: String) -> Result<String, String> {
@@ -63,6 +104,7 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            read_dropped_files,
             save_database_file,
             open_database_file,
             show_message
