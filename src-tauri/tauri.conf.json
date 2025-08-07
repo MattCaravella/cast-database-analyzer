@@ -1,9 +1,10 @@
 {
   "productName": "CAST Database Analyzer",
-  "version": "1.4.6",
+  "version": "1.5.1",
   "identifier": "com.cast.database-analyzer",
   "build": {
-    "frontendDist": "../dist"
+    "frontendDist": "../dist",
+    "devPath": "../dist"
   },
   "app": {
     "windows": [
@@ -13,9 +14,7 @@
         "height": 900,
         "resizable": true,
         "center": true,
-        "fileDropEnabled": true,
-        "webSecurity": false,
-        "devtools": true
+        "dragDropEnabled": true
       }
     ],
     "security": {

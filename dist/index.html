@@ -4,15 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CAST Database Analyzer</title>
-    <!-- CACHE BUSTER v1.4.3 - TAURI VERSION -->
+    <!-- CACHE BUSTER v1.5.0 - TAURI VERSION WITH API INTEGRATION -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- PDF.js for automatic PDF text extraction -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <!-- Tauri API -->
     <script>
         // Configure PDF.js worker
         if (typeof pdfjsLib !== 'undefined') {
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+        
+        // Debug Tauri API availability
+        console.log('Tauri API check:', {
+            hasTauri: typeof window.__TAURI__ !== 'undefined',
+            hasCore: typeof window.__TAURI__?.core !== 'undefined',
+            hasEvent: typeof window.__TAURI__?.event !== 'undefined',
+            userAgent: navigator.userAgent
+        });
+        
+        // Wait for Tauri API to be available
+        function waitForTauri() {
+            return new Promise((resolve) => {
+                if (window.__TAURI__) {
+                    resolve(window.__TAURI__);
+                } else {
+                    // Poll for Tauri API
+                    const checkTauri = () => {
+                        if (window.__TAURI__) {
+                            resolve(window.__TAURI__);
+                        } else {
+                            setTimeout(checkTauri, 50);
+                        }
+                    };
+                    checkTauri();
+                }
+            });
         }
     </script>
     <style>
@@ -622,6 +648,7 @@
                 <button class="btn btn-sm" onclick="performGlobalSearch()">Search All Files</button>
             </div>
             <div class="header-controls">
+                <button id="test-tauri" class="btn" onclick="testTauriConnection()" style="display: none; background: #28a745; color: white;">Test Tauri</button>
                 <button class="btn" onclick="loadDatabase()">Load Database</button>
                 <button class="btn" onclick="saveDatabase()">Save Database</button>
                 <button class="btn btn-warning" onclick="clearAll()">Clear All</button>
@@ -727,16 +754,76 @@
         let pendingFiles = null;
         
         // Check if we're in Tauri or Electron and get the API
-        const isTauri = window.__TAURI__ !== undefined;
+        let isTauri = window.__TAURI__ !== undefined;
         const isElectron = window.electron && window.electron.isElectron;
-        console.log('Running in Tauri mode:', isTauri);
+        console.log('Initial Tauri detection:', isTauri);
         console.log('Running in Electron mode:', isElectron);
         
         // Tauri API imports
         let tauriInvoke, tauriListen;
-        if (isTauri) {
-            tauriInvoke = window.__TAURI__.core.invoke;
-            tauriListen = window.__TAURI__.event.listen;
+        
+        // Initialize Tauri APIs when available
+        async function initializeTauri() {
+            if (!isTauri) {
+                console.log('Waiting for Tauri API...');
+                try {
+                    await waitForTauri();
+                    isTauri = true;
+                    console.log('Tauri API now available!');
+                } catch (error) {
+                    console.error('Failed to initialize Tauri API:', error);
+                    return false;
+                }
+            }
+            
+            if (isTauri && window.__TAURI__) {
+                tauriInvoke = window.__TAURI__.core.invoke;
+                tauriListen = window.__TAURI__.event.listen;
+                console.log('Tauri APIs initialized:', { 
+                    invoke: typeof tauriInvoke, 
+                    listen: typeof tauriListen 
+                });
+                
+                // Show test button when Tauri is available
+                const testButton = document.getElementById('test-tauri');
+                if (testButton) {
+                    testButton.style.display = 'inline-block';
+                }
+                
+                return true;
+            }
+            return false;
+        }
+        
+        // Test Tauri backend connection
+        async function testTauriConnection() {
+            console.log('🧪 Testing Tauri connection...');
+            
+            if (!isTauri || !tauriInvoke) {
+                alert('❌ Tauri API not available!');
+                return;
+            }
+            
+            try {
+                // Test the show_message command
+                const result = await tauriInvoke('show_message', {
+                    title: 'Tauri Test',
+                    message: 'Backend connection working! 🎉\n\nDrag-and-drop should work now.'
+                });
+                console.log('✅ Tauri test successful:', result);
+                
+                // Test file reading with empty paths (should return error)
+                try {
+                    const fileResult = await tauriInvoke('read_dropped_files', { paths: [] });
+                    console.log('File command response:', fileResult);
+                } catch (fileError) {
+                    console.log('Expected file error (empty paths):', fileError);
+                }
+                
+            } catch (error) {
+                console.error('❌ Tauri test failed:', error);
+                alert('❌ Backend test failed: ' + error.message);
+            }
         }
         
         // Pre-compiled regex patterns for better performance
@@ -769,11 +856,21 @@
         
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', async () => {
+            console.log('DOM loaded, initializing app...');
+            
+            // Initialize Tauri first
+            const tauriReady = await initializeTauri();
+            console.log('Tauri initialization result:', tauriReady);
+            
             setupDragAndDrop();
-            await setupTauriDragDrop(); // Initialize Tauri drag-drop if available
+            if (tauriReady) {
+                await setupTauriDragDrop(); // Initialize Tauri drag-drop if available
+            }
             setupTabs();
             setupResizer();
             setupInputModal();
+            
+            console.log('App initialization complete');
         });
 
         // Input Modal Functions
@@ -918,23 +1015,55 @@
         
         // Tauri-specific drag and drop handler
         async function setupTauriDragDrop() {
-            if (!isTauri || !tauriListen) return;
+            if (!isTauri || !tauriListen) {
+                console.log('Tauri drag-drop setup skipped:', { isTauri, hasListen: !!tauriListen });
+                return;
+            }
             
             try {
-                // Listen for file drop events from Tauri
-                await tauriListen('tauri://drag-drop', async (event) => {
-                    console.log('Tauri drag-drop event:', event);
-                    const filePaths = event.payload.paths || event.payload;
+                console.log('Setting up Tauri drag-drop listeners...');
+                
+                // Listen for file drop events from Tauri  
+                const unlistenDrop = await tauriListen('tauri://drag-drop', async (event) => {
+                    console.log('🎯 Tauri drag-drop event received:', event);
+                    
+                    // Handle different payload formats
+                    let filePaths = [];
+                    if (event.payload && Array.isArray(event.payload.paths)) {
+                        filePaths = event.payload.paths;
+                    } else if (event.payload && Array.isArray(event.payload)) {
+                        filePaths = event.payload;
+                    } else if (Array.isArray(event.payload)) {
+                        filePaths = event.payload;
+                    }
                     
                     if (filePaths && filePaths.length > 0) {
-                        console.log('Processing', filePaths.length, 'dropped files in Tauri:', filePaths);
-                        await handleTauriFileDrop(filePaths, 'create'); // Default to 'create' source
+                        console.log('📂 Processing', filePaths.length, 'dropped files:', filePaths);
+                        await handleTauriFileDrop(filePaths, 'create');
+                    } else {
+                        console.warn('No file paths found in drag-drop event:', event);
                     }
                 });
                 
-                console.log('Tauri drag-drop listener registered');
+                // Also listen for drag hover events
+                const unlistenHover = await tauriListen('tauri://drag-enter', (event) => {
+                    console.log('🎯 Drag enter:', event);
+                    // Add visual feedback
+                    document.body.classList.add('drag-active');
+                });
+                
+                const unlistenLeave = await tauriListen('tauri://drag-leave', (event) => {
+                    console.log('🎯 Drag leave:', event);
+                    document.body.classList.remove('drag-active');
+                });
+                
+                console.log('✅ Tauri drag-drop listeners registered successfully');
+                
+                // Store unlisteners for cleanup if needed
+                window.tauriUnlisteners = { unlistenDrop, unlistenHover, unlistenLeave };
+                
             } catch (error) {
-                console.error('Failed to setup Tauri drag-drop:', error);
+                console.error('❌ Failed to setup Tauri drag-drop:', error);
             }
         }
         
