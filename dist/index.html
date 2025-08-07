@@ -725,6 +725,10 @@
         let currentInputCallback = null;
         let pendingFiles = null;
         
+        // Check if we're in Electron and get the API
+        const isElectron = window.electron && window.electron.isElectron;
+        console.log('Running in Electron mode:', isElectron);
+        
         // Pre-compiled regex patterns for better performance
         const patterns = {
             phone: [
@@ -857,10 +861,38 @@
                     area.classList.remove('dragover');
                 });
                 
-                area.addEventListener('drop', (e) => {
+                area.addEventListener('drop', async (e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     area.classList.remove('dragover');
-                    handleFileDrop(Array.from(e.dataTransfer.files), source);
+                    
+                    console.log('Drop event fired!');
+                    
+                    try {
+                        if (isElectron) {
+                            // In Electron, get file paths from dataTransfer
+                            const files = [];
+                            
+                            for (let i = 0; i < e.dataTransfer.files.length; i++) {
+                                const file = e.dataTransfer.files[i];
+                                files.push({
+                                    name: file.name,
+                                    path: file.path,
+                                    size: file.size
+                                });
+                            }
+                            
+                            console.log('Processing', files.length, 'files in Electron mode');
+                            await handleElectronFileDrop(files, source);
+                        } else {
+                            // Browser fallback
+                            const files = Array.from(e.dataTransfer.files);
+                            console.log('Processing', files.length, 'files in browser mode');
+                            await handleFileDrop(files, source);
+                        }
+                    } catch (error) {
+                        console.error('Error in drop handler:', error);
+                    }
                 });
                 
                 area.querySelector('input[type="file"]').addEventListener('change', (e) => {
@@ -980,10 +1012,57 @@
             }
         }
 
-        // Electron-specific file drop handler (alias for handleFileDrop)
-        async function handleElectronFileDrop(files, source) {
-            console.log('Electron file drop handler called');
-            return await handleFileDrop(files, source);
+        // Electron-specific file drop handler
+        async function handleElectronFileDrop(fileInfos, source) {
+            console.log('Electron file drop handler called with', fileInfos.length, 'files');
+            
+            try {
+                const processedFiles = [];
+                
+                // Read file contents using Electron API
+                for (const fileInfo of fileInfos) {
+                    try {
+                        const result = await window.electron.readDroppedFile(fileInfo.path);
+                        if (result.success) {
+                            processedFiles.push({
+                                name: fileInfo.name,
+                                path: fileInfo.path,
+                                size: fileInfo.size,
+                                content: result.data
+                            });
+                        } else {
+                            console.error('Failed to read file:', fileInfo.name, result.error);
+                        }
+                    } catch (error) {
+                        console.error('Error reading file:', fileInfo.name, error);
+                    }
+                }
+                
+                console.log('Successfully processed', processedFiles.length, 'files');
+                
+                // Process the files using our existing logic
+                if (source === 'create') {
+                    pendingFiles = processedFiles;
+                    showInputModal('Enter a name for this source tile:', 'Source name...', async (tileName) => {
+                        if (tileName && pendingFiles) {
+                            try {
+                                const tileId = createSourceTile(tileName);
+                                await processElectronFiles(pendingFiles, tileId);
+                                createNewCreateTile();
+                                console.log(`Created tile "${tileName}" with ${pendingFiles.length} files`);
+                            } catch (error) {
+                                console.error('Error creating tile:', error);
+                            }
+                        }
+                    });
+                } else {
+                    // Process for existing tile
+                    await processElectronFiles(processedFiles, source);
+                }
+                
+            } catch (error) {
+                console.error('Error in handleElectronFileDrop:', error);
+            }
         }
 
         // Updated processFiles function for Electron
@@ -1079,6 +1158,70 @@
             } catch (error) {
                 console.error('Error processing file data:', error);
             }
+        }
+
+        // Process Electron files with proper content handling
+        async function processElectronFiles(processedFiles, tileId) {
+            const tile = sourceTiles.get(tileId);
+            if (!tile) return;
+            
+            console.log(`Processing ${processedFiles.length} Electron files for tile ${tileId}`);
+            
+            for (const fileData of processedFiles) {
+                try {
+                    // Convert buffer to string if needed
+                    let text = '';
+                    if (typeof fileData.content === 'string') {
+                        text = fileData.content;
+                    } else if (fileData.content instanceof Buffer) {
+                        text = fileData.content.toString('utf8');
+                    } else if (fileData.content instanceof Uint8Array) {
+                        text = new TextDecoder('utf-8').decode(fileData.content);
+                    }
+                    
+                    console.log(`Processing ${fileData.name}: ${text.length} characters`);
+                    
+                    // Extract data using existing function
+                    const extracted = extractData(text, fileData.name);
+                    
+                    // Add to tile
+                    tile.files.push(fileData.name);
+                    
+                    // Add extracted data
+                    extracted.phones.forEach(phone => tile.phones.add(phone));
+                    extracted.emails.forEach(email => tile.emails.add(email));
+                    extracted.ips.forEach(ip => tile.ips.add(ip));
+                    
+                    // Add row data
+                    extracted.phoneRows.forEach((rows, phone) => {
+                        if (!tile.phoneRows.has(phone)) {
+                            tile.phoneRows.set(phone, []);
+                        }
+                        tile.phoneRows.get(phone).push(...rows);
+                    });
+                    
+                    extracted.emailRows.forEach((rows, email) => {
+                        if (!tile.emailRows.has(email)) {
+                            tile.emailRows.set(email, []);
+                        }
+                        tile.emailRows.get(email).push(...rows);
+                    });
+                    
+                    extracted.ipRows.forEach((rows, ip) => {
+                        if (!tile.ipRows.has(ip)) {
+                            tile.ipRows.set(ip, []);
+                        }
+                        tile.ipRows.get(ip).push(...rows);
+                    });
+                    
+                } catch (error) {
+                    console.error(`Error processing file ${fileData.name}:`, error);
+                }
+            }
+            
+            // Update the display
+            updateTileDisplay(tileId);
+            console.log(`Completed processing ${processedFiles.length} files for tile ${tileId}`);
         }
 
         function createSourceTile(name) {

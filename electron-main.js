@@ -11,12 +11,12 @@ function createWindow() {
     minWidth: 1200,
     minHeight: 700,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      nodeIntegration: false,
+      contextIsolation: true,
+      enableRemoteModule: false,
+      preload: path.join(__dirname, 'preload.js'),
       webSecurity: false,
-      allowRunningInsecureContent: true,
-      experimentalFeatures: true,
-      enableRemoteModule: true
+      allowRunningInsecureContent: true
     },
     title: 'CAST Database Analyzer',
     show: false // Don't show until ready
@@ -223,4 +223,48 @@ ipcMain.handle('get-file-info', async (event, filePath) => {
       error: error.message
     };
   }
+});
+
+// Handle drag start events
+ipcMain.on('ondragstart', (event, filePath) => {
+  const iconPath = path.join(__dirname, 'src-tauri/icons/icon.png');
+  event.sender.startDrag({
+    file: filePath,
+    icon: iconPath
+  });
+});
+
+// Process dropped files
+ipcMain.handle('process-dropped-files', async (event, files) => {
+  try {
+    const processedFiles = [];
+    
+    for (const file of files) {
+      const result = await ipcMain.handle('read-dropped-file', event, file.path);
+      if (result.success) {
+        processedFiles.push({
+          name: file.name,
+          path: file.path,
+          size: file.size,
+          data: result.data
+        });
+      }
+    }
+    
+    return {
+      success: true,
+      files: processedFiles
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// Get version
+ipcMain.handle('get-version', () => {
+  const packageJson = require('./package.json');
+  return packageJson.version;
 });
