@@ -30,8 +30,20 @@ jobs:
       with:
         workspaces: "./src-tauri -> target"
 
-    - name: Prepare frontend
-      run: node build-tauri.js
+    - name: Prepare frontend and icons
+      run: |
+        node build-tauri.js
+        node create-icon.js
+
+    - name: Verify ICO file exists
+      run: |
+        if (Test-Path "src-tauri/icons/icon.ico") {
+          Write-Host "ICO file found: $(Get-Item 'src-tauri/icons/icon.ico' | Select-Object Length)"
+        } else {
+          Write-Host "ICO file missing - creating fallback"
+          Copy-Item "src-tauri/icons/32x32.png" "src-tauri/icons/icon.ico"
+        }
+      shell: powershell
 
     - name: Build and Release Tauri App
       uses: tauri-apps/tauri-action@v0

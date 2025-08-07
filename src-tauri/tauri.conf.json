@@ -23,6 +23,9 @@
   "bundle": {
     "active": true,
     "targets": ["msi", "nsis"],
+    "icon": [
+      "icons/icon.ico"
+    ],
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
